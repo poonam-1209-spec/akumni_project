@@ -169,6 +169,21 @@ class ApiClient {
     return this.handleResponse(response);
   }
 
+  async getPendingApprovalEvents() {
+    const response = await fetch(`${this.baseUrl}/events/pending-approval`);
+    return this.handleResponse(response);
+  }
+
+  async approveEvent(id: string) {
+    const response = await fetch(`${this.baseUrl}/events/${id}/approve`, { method: 'PUT' });
+    return this.handleResponse(response);
+  }
+
+  async rejectEvent(id: string) {
+    const response = await fetch(`${this.baseUrl}/events/${id}/reject`, { method: 'PUT' });
+    return this.handleResponse(response);
+  }
+
   // Attendance Endpoints
   async registerForEvent(eventId: string, alumniId: string) {
     const response = await fetch(`${this.baseUrl}/attendance/register?eventId=${eventId}&alumniId=${alumniId}`, {

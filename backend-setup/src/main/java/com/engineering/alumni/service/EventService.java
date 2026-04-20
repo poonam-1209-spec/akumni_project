@@ -126,6 +126,24 @@ public class EventService {
             .collect(Collectors.toList());
     }
 
+    // Approve alumni-submitted event
+    public EventDTO approveEvent(String id) {
+        log.info("Approving event with ID: {}", id);
+        Event event = eventRepository.findById(id)
+            .orElseThrow(() -> new RuntimeException("Event not found with ID: " + id));
+        event.setStatus(Event.EventStatus.PUBLISHED);
+        return EventDTO.fromEntity(eventRepository.save(event));
+    }
+
+    // Reject alumni-submitted event
+    public EventDTO rejectEvent(String id) {
+        log.info("Rejecting event with ID: {}", id);
+        Event event = eventRepository.findById(id)
+            .orElseThrow(() -> new RuntimeException("Event not found with ID: " + id));
+        event.setStatus(Event.EventStatus.REJECTED);
+        return EventDTO.fromEntity(eventRepository.save(event));
+    }
+
     // Get event statistics
     public EventStatisticsDTO getEventStatistics() {
         log.info("Fetching event statistics");

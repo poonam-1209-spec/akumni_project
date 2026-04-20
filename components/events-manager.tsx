@@ -3,16 +3,19 @@
 import React from "react"
 
 import { useState, useEffect } from 'react';
-import { Plus, Trash2, Calendar, MapPin, Users, RefreshCw, AlertCircle, Link, Copy, Check } from 'lucide-react';
+import { Plus, Trash2, Calendar, MapPin, Users, RefreshCw, AlertCircle, Link, Copy, Check, CheckCircle, XCircle } from 'lucide-react';
 import { apiClient } from '@/lib/api-client';
 import { Event } from '@/lib/types';
+import { EventPoster, PosterData } from '@/components/event-poster';
 
 export function EventsManager() {
   const [events, setEvents] = useState<Event[]>([]);
+  const [pendingEvents, setPendingEvents] = useState<Event[]>([]);
   const [showForm, setShowForm] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [copiedId, setCopiedId] = useState<string | null>(null);
+  const [posterData, setPosterData] = useState<PosterData | null>(null);
   const [formData, setFormData] = useState({
     title: '',
     description: '',
@@ -22,6 +25,7 @@ export function EventsManager() {
     endTime: '12:00',
     location: '',
     capacity: '',
+    targetAudience: 'BOTH',
   });
   useEffect(() => {
     loadEvents();
@@ -31,8 +35,12 @@ export function EventsManager() {
     try {
       setLoading(true);
       setError(null);
-      const response = await apiClient.getAllEvents();
-      setEvents(response.data || []);
+      const [eventsRes, pendingRes] = await Promise.all([
+        apiClient.getAllEvents(),
+        apiClient.getPendingApprovalEvents(),
+      ]);
+      setEvents(eventsRes.data || []);
+      setPendingEvents(pendingRes.data || []);
     } catch (err) {
       console.error('Failed to load events:', err);
       setError('Failed to load events data');
@@ -56,10 +64,21 @@ export function EventsManager() {
         location: formData.location,
         capacity: formData.capacity ? parseInt(formData.capacity) : null,
         status: 'DRAFT',
+        targetAudience: formData.targetAudience,
       };
 
       const response = await apiClient.createEvent(newEvent);
       setEvents([...events, response.data]);
+      // Show poster
+      setPosterData({
+        title: formData.title,
+        eventType: formData.eventType,
+        date: new Date(formData.date).toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' }),
+        time: `${formData.startTime} – ${formData.endTime}`,
+        location: formData.location || 'TBD',
+        organizer: 'Admin',
+        description: formData.description,
+      });
       setFormData({
         title: '',
         description: '',
@@ -69,6 +88,7 @@ export function EventsManager() {
         endTime: '12:00',
         location: '',
         capacity: '',
+        targetAudience: 'BOTH',
       });
       setShowForm(false);
     } catch (err) {
@@ -106,6 +126,38 @@ export function EventsManager() {
     } catch (err) {
       console.error('Failed to update event status:', err);
       alert('Failed to update event status');
+    }
+  };
+
+  const handleApprove = async (id: string) => {
+    try {
+      const res = await apiClient.approveEvent(id);
+      const approved = res.data || pendingEvents.find(e => e.id === id);
+      setPendingEvents(prev => prev.filter(e => e.id !== id));
+      await loadEvents();
+      if (approved) {
+        setPosterData({
+          title: approved.title,
+          eventType: approved.eventType as string,
+          date: new Date(approved.eventDate || (approved as any).date).toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' }),
+          time: (approved as any).startTime ? `${(approved as any).startTime}` : 'See event details',
+          location: approved.location || 'TBD',
+          organizer: (approved as any).createdBy || 'Alumni',
+          description: approved.description,
+        });
+      }
+    } catch (err) {
+      alert('Failed to approve event');
+    }
+  };
+
+  const handleReject = async (id: string) => {
+    if (!confirm('Reject this event?')) return;
+    try {
+      await apiClient.rejectEvent(id);
+      setPendingEvents(prev => prev.filter(e => e.id !== id));
+    } catch (err) {
+      alert('Failed to reject event');
     }
   };
 
@@ -160,6 +212,7 @@ export function EventsManager() {
 
   return (
     <div className="space-y-6">
+      {posterData && <EventPoster data={posterData} onClose={() => setPosterData(null)} />}
       <div className="flex items-center justify-between">
         <h1 className="text-3xl font-bold">Events</h1>
         <button
@@ -246,6 +299,16 @@ export function EventsManager() {
               />
             </div>
 
+            <select
+              value={formData.targetAudience}
+              onChange={(e) => setFormData({ ...formData, targetAudience: e.target.value })}
+              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+            >
+              <option value="BOTH">For Everyone (Students & Alumni)</option>
+              <option value="STUDENT">Students Only</option>
+              <option value="ALUMNI">Alumni Only</option>
+            </select>
+
             <div className="flex gap-3">
               <button
                 type="submit"
@@ -262,6 +325,46 @@ export function EventsManager() {
               </button>
             </div>
           </form>
+        </div>
+      )}
+
+      {/* Pending Approvals */}
+      {pendingEvents.length > 0 && (
+        <div className="bg-amber-50 border border-amber-200 rounded-lg p-5">
+          <h2 className="text-lg font-semibold text-amber-800 mb-4 flex items-center gap-2">
+            <AlertCircle className="w-5 h-5" />
+            Pending Approval ({pendingEvents.length})
+          </h2>
+          <div className="space-y-3">
+            {pendingEvents.map(event => (
+              <div key={event.id} className="bg-white rounded-lg border border-amber-100 p-4 flex items-start justify-between gap-4">
+                <div className="flex-1 min-w-0">
+                  <p className="font-semibold text-gray-900">{event.title}</p>
+                  <p className="text-sm text-gray-500 line-clamp-1">{event.description}</p>
+                  <div className="flex items-center gap-3 mt-1 text-xs text-gray-400">
+                    <span className="capitalize">{event.eventType?.toLowerCase()}</span>
+                    <span>{new Date(event.eventDate || (event as any).date).toLocaleDateString()}</span>
+                    {event.location && <span>{event.location}</span>}
+                    {(event as any).createdBy && <span>by {(event as any).createdBy}</span>}
+                  </div>
+                </div>
+                <div className="flex gap-2 shrink-0">
+                  <button
+                    onClick={() => handleApprove(event.id)}
+                    className="flex items-center gap-1 bg-green-600 hover:bg-green-700 text-white text-sm font-medium px-3 py-1.5 rounded-lg transition-colors"
+                  >
+                    <CheckCircle className="w-4 h-4" /> Approve
+                  </button>
+                  <button
+                    onClick={() => handleReject(event.id)}
+                    className="flex items-center gap-1 bg-red-100 hover:bg-red-200 text-red-700 text-sm font-medium px-3 py-1.5 rounded-lg transition-colors"
+                  >
+                    <XCircle className="w-4 h-4" /> Reject
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
         </div>
       )}
 

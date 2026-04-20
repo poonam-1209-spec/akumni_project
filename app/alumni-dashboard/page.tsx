@@ -4,6 +4,7 @@ import { useState, useEffect, useRef } from 'react';
 import { useAuth } from '@/hooks/use-auth';
 import { interactionApi } from '@/lib/interaction-api';
 import { AlumniChatbot } from '@/components/alumni-chatbot';
+import { EventPoster, PosterData, EventPosterCard } from '@/components/event-poster';
 import {
   LogOut, User, MessageCircle, Briefcase, GraduationCap, Users,
   Bell, Send, CheckCircle, XCircle, Clock, Plus, X, Calendar,
@@ -34,8 +35,21 @@ export default function AlumniDashboard() {
   const [sending, setSending] = useState(false);
   const [jobForm, setJobForm] = useState({ title: '', company: '', description: '', location: '', skills: '', type: 'Full-time' });
   const [events, setEvents] = useState<any[]>([]);
+  const [showCreateEvent, setShowCreateEvent] = useState(false);
+  const [mySubmittedEvents, setMySubmittedEvents] = useState<any[]>([]);
+  const [eventForm, setEventForm] = useState({ title: '', description: '', eventType: 'WORKSHOP', date: '', startTime: '10:00', location: '', capacity: '', targetAudience: 'BOTH' });
+  const [posterData, setPosterData] = useState<PosterData | null>(null);
+  const [viewStudentProfile, setViewStudentProfile] = useState<any>(null);
   const [showEditProfile, setShowEditProfile] = useState(false);
   const [profileForm, setProfileForm] = useState<any>({ name: '', phone: '', branch: '', graduationYear: '' });
+  const [profilePhoto, setProfilePhoto] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (user?.email) {
+      const saved = localStorage.getItem(`photo_${user.email}`);
+      if (saved) setProfilePhoto(saved);
+    }
+  }, [user?.email]);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   const showToast = (msg: string, type: 'success' | 'error' = 'success') => {
@@ -47,7 +61,8 @@ export default function AlumniDashboard() {
     if (!user) return;
     interactionApi.getAlumniJobs(user.email).then(r => setJobs(r.data || []));
     interactionApi.getChatPartners(user.email).then(r => setChatPartners(r.data || []));
-    interactionApi.getEvents().then(r => setEvents(r.data || []));
+    interactionApi.getEvents().then(r => setEvents((r.data || []).filter((e: any) => e.targetAudience === 'ALUMNI' || e.targetAudience === 'BOTH' || !e.targetAudience)));
+    interactionApi.getMySubmittedEvents(user.email).then(r => setMySubmittedEvents(r.data || []));
   }, [user]);
 
   useEffect(() => {
@@ -136,8 +151,10 @@ export default function AlumniDashboard() {
           </div>
           <div className="bg-slate-800 rounded-lg p-3 mb-6">
             <div className="flex items-center gap-3">
-              <div className={`w-10 h-10 ${getBg(user?.email || '')} rounded-xl flex items-center justify-center text-lg`}>
-                {getAvatar(user?.email || '')}
+              <div className={`w-10 h-10 ${getBg(user?.email || '')} rounded-xl flex items-center justify-center text-lg overflow-hidden`}>
+                {profilePhoto
+                  ? <img src={profilePhoto} alt="profile" className="w-full h-full object-cover" />
+                  : getAvatar(user?.email || '')}
               </div>
               <div className="flex-1 min-w-0">
                 <p className="text-white text-sm font-semibold truncate">{user?.name}</p>
@@ -291,8 +308,10 @@ export default function AlumniDashboard() {
                   {requests.map((r: any) => (
                     <div key={r.id} className="bg-white rounded-2xl border border-gray-100 p-5 shadow-sm hover:shadow-md transition-all">
                       <div className="flex items-start gap-4">
-                        <div className={`w-12 h-12 ${getBg(r.studentEmail)} rounded-2xl flex items-center justify-center text-xl shrink-0`}>
-                          {getAvatar(r.studentEmail)}
+                        <div className={`w-12 h-12 ${getBg(r.studentEmail)} rounded-2xl flex items-center justify-center text-xl shrink-0 overflow-hidden`}>
+                          {typeof window !== 'undefined' && localStorage.getItem(`photo_${r.studentEmail}`)
+                            ? <img src={localStorage.getItem(`photo_${r.studentEmail}`)!} alt={r.studentName} className="w-full h-full object-cover" />
+                            : getAvatar(r.studentEmail)}
                         </div>
                         <div className="flex-1 min-w-0">
                           <div className="flex items-center gap-2 mb-1">
@@ -306,6 +325,12 @@ export default function AlumniDashboard() {
                           </div>
                           <p className="text-xs text-gray-400 mb-2">{r.studentEmail}</p>
                           <p className="text-sm text-gray-600 bg-gray-50 rounded-xl px-3 py-2">{r.message}</p>
+                          <button onClick={async () => {
+                            const res = await interactionApi.getProfile(r.studentEmail);
+                            setViewStudentProfile(res.data || { name: r.studentName, email: r.studentEmail });
+                          }} className="mt-2 text-xs text-blue-600 hover:text-blue-700 font-medium flex items-center gap-1">
+                            <User className="w-3 h-3" /> View Profile
+                          </button>
                           {r.scheduledAt && (
                             <div className="flex items-center gap-2 mt-3 bg-blue-50 rounded-xl px-3 py-2">
                               <Calendar className="w-4 h-4 text-blue-500" />
@@ -355,6 +380,50 @@ export default function AlumniDashboard() {
                   ))}
                 </div>
               )}
+            </div>
+          )}
+
+          {/* Student Profile Modal */}
+          {viewStudentProfile && (
+            <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+              <div className="bg-white rounded-2xl shadow-2xl p-6 w-full max-w-sm">
+                <div className="flex items-center justify-between mb-5">
+                  <h3 className="font-bold text-gray-900 text-lg">Student Profile</h3>
+                  <button onClick={() => setViewStudentProfile(null)}
+                    className="w-8 h-8 bg-gray-100 hover:bg-gray-200 rounded-full flex items-center justify-center">
+                    <X className="w-4 h-4 text-gray-500" />
+                  </button>
+                </div>
+                <div className="flex items-center gap-4 mb-5">
+                  <div className={`w-16 h-16 ${getBg(viewStudentProfile.email)} rounded-2xl flex items-center justify-center text-3xl shrink-0 overflow-hidden`}>
+                    {typeof window !== 'undefined' && localStorage.getItem(`photo_${viewStudentProfile.email}`)
+                      ? <img src={localStorage.getItem(`photo_${viewStudentProfile.email}`)!} alt={viewStudentProfile.name} className="w-full h-full object-cover" />
+                      : getAvatar(viewStudentProfile.email)}
+                  </div>
+                  <div>
+                    <p className="font-bold text-gray-900 text-lg">{viewStudentProfile.name}</p>
+                    <p className="text-xs text-gray-500">{viewStudentProfile.email}</p>
+                    <span className="text-xs bg-blue-100 text-blue-700 px-2 py-0.5 rounded-full font-medium mt-1 inline-block">Student</span>
+                  </div>
+                </div>
+                <div className="space-y-2 bg-gray-50 rounded-xl p-4">
+                  {[
+                    { label: 'Branch', value: viewStudentProfile.branch },
+                    { label: 'Graduation Year', value: viewStudentProfile.graduationYear },
+                    { label: 'Phone', value: viewStudentProfile.phone },
+                    { label: 'Location', value: viewStudentProfile.location },
+                    { label: 'Skills', value: viewStudentProfile.skills },
+                  ].filter(f => f.value).map(f => (
+                    <div key={f.label} className="flex justify-between text-sm">
+                      <span className="text-gray-500">{f.label}</span>
+                      <span className="font-medium text-gray-800 text-right max-w-[60%] truncate">{String(f.value)}</span>
+                    </div>
+                  ))}
+                  {!viewStudentProfile.branch && !viewStudentProfile.phone && !viewStudentProfile.location && (
+                    <p className="text-xs text-gray-400 text-center">No additional details available</p>
+                  )}
+                </div>
+              </div>
             </div>
           )}
 
@@ -569,8 +638,10 @@ export default function AlumniDashboard() {
               </div>
               <div className="bg-white rounded-2xl border border-gray-100 p-6 shadow-sm">
                 <div className="flex items-center gap-5 mb-6">
-                  <div className={`w-20 h-20 ${getBg(user?.email || '')} rounded-3xl flex items-center justify-center text-4xl shadow-lg`}>
-                    {getAvatar(user?.email || '')}
+                  <div className={`w-20 h-20 ${getBg(user?.email || '')} rounded-3xl flex items-center justify-center text-4xl shadow-lg overflow-hidden`}>
+                    {profilePhoto
+                      ? <img src={profilePhoto} alt="profile" className="w-full h-full object-cover" />
+                      : getAvatar(user?.email || '')}
                   </div>
                   <div>
                     <p className="text-xl font-bold text-gray-900">{user?.name}</p>
@@ -605,6 +676,35 @@ export default function AlumniDashboard() {
                       </button>
                     </div>
                     <div className="space-y-3">
+                      {/* Photo Upload */}
+                      <div className="flex flex-col items-center gap-2 pb-3 border-b border-gray-100">
+                        <div className={`w-20 h-20 ${getBg(user?.email || '')} rounded-2xl overflow-hidden flex items-center justify-center text-4xl shadow`}>
+                          {profilePhoto
+                            ? <img src={profilePhoto} alt="profile" className="w-full h-full object-cover" />
+                            : getAvatar(user?.email || '')}
+                        </div>
+                        <label className="cursor-pointer text-xs font-semibold text-blue-600 hover:text-blue-700 bg-blue-50 hover:bg-blue-100 px-3 py-1.5 rounded-lg transition-colors">
+                          Upload Photo
+                          <input type="file" accept="image/*" className="hidden"
+                            onChange={e => {
+                              const file = e.target.files?.[0];
+                              if (!file) return;
+                              const reader = new FileReader();
+                              reader.onload = ev => {
+                                const result = ev.target?.result as string;
+                                setProfilePhoto(result);
+                                if (user?.email) localStorage.setItem(`photo_${user.email}`, result);
+                              };
+                              reader.readAsDataURL(file);
+                            }} />
+                        </label>
+                        {profilePhoto && (
+                          <button onClick={() => {
+                            setProfilePhoto(null);
+                            if (user?.email) localStorage.removeItem(`photo_${user.email}`);
+                          }} className="text-xs text-red-500 hover:text-red-600">Remove photo</button>
+                        )}
+                      </div>
                       {[
                         { key: 'name', label: 'Full Name', placeholder: user?.name || '' },
                         { key: 'graduationYear', label: 'Graduation Year', placeholder: 'e.g. 2020' },
@@ -627,9 +727,13 @@ export default function AlumniDashboard() {
                       ))}
                       <button onClick={async () => {
                         if (!user) return;
-                        const r = await interactionApi.updateProfile(user.email, profileForm);
-                        if (r.success) { showToast('Profile updated!'); setShowEditProfile(false); }
-                        else showToast('Failed to update', 'error');
+                        try {
+                          const r = await interactionApi.updateProfile(user.email, profileForm);
+                          if (r.success || r.id) { showToast('Profile updated!'); setShowEditProfile(false); }
+                          else showToast(r.message || 'Failed to update', 'error');
+                        } catch (e) {
+                          showToast('Failed to update', 'error');
+                        }
                       }}
                         className="w-full bg-blue-600 hover:bg-blue-700 text-white font-semibold py-3 rounded-xl text-sm transition-colors">
                         Save Changes
@@ -644,10 +748,136 @@ export default function AlumniDashboard() {
           {/* ── EVENTS ── */}
           {tab === 'events' && (
             <div className="space-y-5">
-              <div>
-                <h1 className="text-2xl font-bold text-gray-900">Upcoming Events</h1>
-                <p className="text-gray-500 text-sm mt-1">{events.length} event(s) available</p>
+              <div className="flex items-center justify-between">
+                <div>
+                  <h1 className="text-2xl font-bold text-gray-900">Events</h1>
+                  <p className="text-gray-500 text-sm mt-1">{events.length} event(s) available</p>
+                </div>
+                <button
+                  onClick={() => setShowCreateEvent(v => !v)}
+                  className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white text-sm font-semibold px-4 py-2 rounded-xl transition-colors"
+                >
+                  <Plus className="w-4 h-4" />
+                  Propose Event
+                </button>
               </div>
+
+              {/* Create Event Form */}
+              {showCreateEvent && (
+                <div className="bg-white rounded-2xl border border-blue-100 p-5 shadow-sm">
+                  <h2 className="font-bold text-gray-900 mb-4">Propose a New Event</h2>
+                  <p className="text-xs text-amber-600 bg-amber-50 rounded-lg px-3 py-2 mb-4">Your event will be sent to admin for approval before it appears on the student board.</p>
+                  <div className="space-y-3">
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                      <input type="text" placeholder="Event Title" value={eventForm.title}
+                        onChange={e => setEventForm(f => ({ ...f, title: e.target.value }))}
+                        className="px-3 py-2 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-400" />
+                      <select value={eventForm.eventType}
+                        onChange={e => setEventForm(f => ({ ...f, eventType: e.target.value }))}
+                        className="px-3 py-2 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-400">
+                        <option value="WORKSHOP">Workshop</option>
+                        <option value="WEBINAR">Webinar</option>
+                        <option value="NETWORKING">Networking</option>
+                        <option value="SEMINAR">Seminar</option>
+                        <option value="REUNION">Reunion</option>
+                      </select>
+                    </div>
+                    <textarea placeholder="Event Description" value={eventForm.description}
+                      onChange={e => setEventForm(f => ({ ...f, description: e.target.value }))}
+                      rows={3}
+                      className="w-full px-3 py-2 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-400 resize-none" />
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                      <input type="date" value={eventForm.date}
+                        onChange={e => setEventForm(f => ({ ...f, date: e.target.value }))}
+                        className="px-3 py-2 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-400" />
+                      <input type="time" value={eventForm.startTime}
+                        onChange={e => setEventForm(f => ({ ...f, startTime: e.target.value }))}
+                        className="px-3 py-2 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-400" />
+                      <input type="number" placeholder="Capacity" value={eventForm.capacity}
+                        onChange={e => setEventForm(f => ({ ...f, capacity: e.target.value }))}
+                        className="px-3 py-2 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-400" />
+                    </div>
+                    <input type="text" placeholder="Location" value={eventForm.location}
+                      onChange={e => setEventForm(f => ({ ...f, location: e.target.value }))}
+                      className="w-full px-3 py-2 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-400" />
+                    <select value={eventForm.targetAudience}
+                      onChange={e => setEventForm(f => ({ ...f, targetAudience: e.target.value }))}
+                      className="w-full px-3 py-2 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-400">
+                      <option value="BOTH">For Everyone (Students & Alumni)</option>
+                      <option value="STUDENT">Students Only</option>
+                      <option value="ALUMNI">Alumni Only</option>
+                    </select>
+                    <div className="flex gap-3">
+                      <button
+                        onClick={async () => {
+                          if (!user || !eventForm.title || !eventForm.description || !eventForm.date) {
+                            showToast('Title, description and date are required', 'error'); return;
+                          }
+                          const payload = {
+                            title: eventForm.title,
+                            description: eventForm.description,
+                            eventType: eventForm.eventType,
+                            eventDate: `${eventForm.date}T${eventForm.startTime}:00`,
+                            location: eventForm.location,
+                            capacity: eventForm.capacity ? parseInt(eventForm.capacity) : null,
+                            createdBy: user.email,
+                            targetAudience: eventForm.targetAudience,
+                          };
+                          const r = await interactionApi.submitAlumniEvent(payload);
+                          if (r.success || r.id) {
+                            showToast('Event submitted for admin approval!');
+                            setPosterData({
+                              title: eventForm.title,
+                              eventType: eventForm.eventType,
+                              date: new Date(eventForm.date).toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' }),
+                              time: eventForm.startTime,
+                              location: eventForm.location || 'TBD',
+                              organizer: user.name || user.email,
+                              description: eventForm.description,
+                            });
+                            setShowCreateEvent(false);
+                            setEventForm({ title: '', description: '', eventType: 'WORKSHOP', date: '', startTime: '10:00', location: '', capacity: '', targetAudience: 'BOTH' });
+                            interactionApi.getMySubmittedEvents(user.email).then(r => setMySubmittedEvents(r.data || []));
+                          } else {
+                            showToast(r.message || 'Failed to submit event', 'error');
+                          }
+                        }}
+                        className="flex-1 bg-blue-600 hover:bg-blue-700 text-white font-semibold py-2.5 rounded-xl text-sm transition-colors">
+                        Submit for Approval
+                      </button>
+                      <button onClick={() => setShowCreateEvent(false)}
+                        className="flex-1 bg-gray-100 hover:bg-gray-200 text-gray-700 font-semibold py-2.5 rounded-xl text-sm transition-colors">
+                        Cancel
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* My Submitted Events */}
+              {mySubmittedEvents.length > 0 && (
+                <div>
+                  <h2 className="font-semibold text-gray-700 mb-3">My Submitted Events</h2>
+                  <div className="space-y-2">
+                    {mySubmittedEvents.map((e: any) => (
+                      <div key={e.id} className="bg-white rounded-xl border border-gray-100 px-4 py-3 flex items-center justify-between shadow-sm">
+                        <div>
+                          <p className="font-semibold text-gray-800 text-sm">{e.title}</p>
+                          <p className="text-xs text-gray-400">{new Date(e.eventDate).toLocaleDateString()}</p>
+                        </div>
+                        <span className={`text-xs px-2.5 py-1 rounded-full font-medium ${
+                          e.status === 'PENDING_APPROVAL' ? 'bg-amber-100 text-amber-700' :
+                          e.status === 'PUBLISHED' ? 'bg-green-100 text-green-700' :
+                          e.status === 'REJECTED' ? 'bg-red-100 text-red-700' :
+                          'bg-gray-100 text-gray-600'
+                        }`}>{e.status === 'PENDING_APPROVAL' ? 'Pending Approval' : e.status?.toLowerCase()}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* All Events */}
               {events.length === 0 ? (
                 <div className="bg-white rounded-3xl border border-gray-100 p-16 text-center shadow-sm">
                   <div className="w-20 h-20 bg-blue-50 rounded-lg flex items-center justify-center mx-auto mb-4">
@@ -661,55 +891,22 @@ export default function AlumniDashboard() {
                   {events.map((e: any) => {
                     const registered = e._registered;
                     return (
-                      <div key={e.id} className="bg-white rounded-2xl border border-gray-100 p-5 shadow-sm hover:shadow-md hover:-translate-y-0.5 transition-all">
-                        <div className="flex items-start justify-between mb-3">
-                          <span className={`text-xs px-2.5 py-1 rounded-full font-medium capitalize ${
-                            e.status === 'PUBLISHED' ? 'bg-green-100 text-green-700' :
-                            e.status === 'ONGOING' ? 'bg-blue-100 text-blue-700' :
-                            'bg-gray-100 text-gray-600'
-                          }`}>{e.status?.toLowerCase()}</span>
-                          <span className="text-xs bg-blue-50 text-blue-700 px-2.5 py-1 rounded-full capitalize">{e.eventType?.toLowerCase()}</span>
-                        </div>
-                        <h3 className="font-bold text-gray-900 mb-1">{e.title}</h3>
-                        <p className="text-xs text-gray-500 mb-4 line-clamp-2">{e.description}</p>
-                        <div className="space-y-2 text-xs text-gray-500 mb-4">
-                          <div className="flex items-center gap-2">
-                            <Calendar className="w-3.5 h-3.5 text-blue-400" />
-                            <span>{new Date(e.eventDate || e.date).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' })}</span>
-                          </div>
-                          {e.location && (
-                            <div className="flex items-center gap-2">
-                              <MapPin className="w-3.5 h-3.5 text-blue-400" />
-                              <span>{e.location}</span>
-                            </div>
-                          )}
-                          {e.capacity && (
-                            <div className="flex items-center gap-2">
-                              <Users className="w-3.5 h-3.5 text-blue-400" />
-                              <span>{e.registeredCount || 0}/{e.capacity} registered</span>
-                            </div>
-                          )}
-                        </div>
-                        <button
-                          disabled={registered}
-                          onClick={async () => {
-                            if (!user) return;
-                            const r = await interactionApi.registerForEvent(e.id, user.email, user.name, 'ALUMNI');
-                            if (r.success) {
-                              showToast('Registered successfully!');
-                              setEvents(prev => prev.map(ev => ev.id === e.id ? { ...ev, _registered: true } : ev));
-                            } else {
-                              showToast(r.message || 'Already registered', 'error');
-                            }
-                          }}
-                          className={`w-full py-2.5 rounded-xl text-sm font-semibold transition-all ${
-                            registered
-                              ? 'bg-green-100 text-green-700 cursor-not-allowed'
-                              : 'bg-blue-600 hover:bg-blue-700 text-white shadow-md'
-                          }`}>
-                          {registered ? '✓ Registered' : 'Register Now'}
-                        </button>
-                      </div>
+                      <EventPosterCard
+                        key={e.id}
+                        event={e}
+                        registered={registered}
+                        userRole="ALUMNI"
+                        onRegister={async () => {
+                          if (!user) return;
+                          const r = await interactionApi.registerForEvent(e.id, user.email, user.name, 'ALUMNI');
+                          if (r.success) {
+                            showToast('Registered successfully!');
+                            setEvents(prev => prev.map(ev => ev.id === e.id ? { ...ev, _registered: true } : ev));
+                          } else {
+                            showToast(r.message || 'Already registered', 'error');
+                          }
+                        }}
+                      />
                     );
                   })}
                 </div>
@@ -720,6 +917,7 @@ export default function AlumniDashboard() {
         </div>
       </div>
       <AlumniChatbot />
+      {posterData && <EventPoster data={posterData} onClose={() => setPosterData(null)} />}
     </div>
   );
 }

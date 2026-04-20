@@ -13,7 +13,7 @@ import java.time.LocalDateTime;
 public class Event {
     public Event() {}
 
-    public Event(String id, String title, String description, LocalDateTime eventDate, String location, Integer capacity, EventType eventType, EventStatus status, LocalDateTime createdAt, LocalDateTime updatedAt) {
+    public Event(String id, String title, String description, LocalDateTime eventDate, String location, Integer capacity, EventType eventType, EventStatus status, String createdBy, TargetAudience targetAudience, LocalDateTime createdAt, LocalDateTime updatedAt) {
         this.id = id;
         this.title = title;
         this.description = description;
@@ -22,6 +22,8 @@ public class Event {
         this.capacity = capacity;
         this.eventType = eventType;
         this.status = status;
+        this.createdBy = createdBy;
+        this.targetAudience = targetAudience != null ? targetAudience : TargetAudience.BOTH;
         this.createdAt = createdAt;
         this.updatedAt = updatedAt;
     }
@@ -36,6 +38,8 @@ public class Event {
         private Integer capacity;
         private EventType eventType;
         private EventStatus status;
+        private String createdBy;
+        private TargetAudience targetAudience;
         private LocalDateTime createdAt;
         private LocalDateTime updatedAt;
 
@@ -47,14 +51,20 @@ public class Event {
         public Builder capacity(Integer capacity) { this.capacity = capacity; return this; }
         public Builder eventType(EventType eventType) { this.eventType = eventType; return this; }
         public Builder status(EventStatus status) { this.status = status; return this; }
+        public Builder createdBy(String createdBy) { this.createdBy = createdBy; return this; }
+        public Builder targetAudience(TargetAudience targetAudience) { this.targetAudience = targetAudience; return this; }
         public Builder createdAt(LocalDateTime createdAt) { this.createdAt = createdAt; return this; }
         public Builder updatedAt(LocalDateTime updatedAt) { this.updatedAt = updatedAt; return this; }
         public Event build() {
-            return new Event(id, title, description, eventDate, location, capacity, eventType, status, createdAt, updatedAt);
+            return new Event(id, title, description, eventDate, location, capacity, eventType, status, createdBy, targetAudience, createdAt, updatedAt);
         }
     }
 
     // Getters and setters
+    public String getCreatedBy() { return createdBy; }
+    public void setCreatedBy(String createdBy) { this.createdBy = createdBy; }
+    public TargetAudience getTargetAudience() { return targetAudience; }
+    public void setTargetAudience(TargetAudience targetAudience) { this.targetAudience = targetAudience; }
     public String getId() { return id; }
     public void setId(String id) { this.id = id; }
     public String getTitle() { return title; }
@@ -106,6 +116,13 @@ public class Event {
     @Column(nullable = false)
     private EventStatus status;
 
+    @Column
+    private String createdBy; // email of alumni who submitted the event
+
+    @Enumerated(EnumType.STRING)
+    @Column(nullable = false)
+    private TargetAudience targetAudience = TargetAudience.BOTH;
+
     @Column(nullable = false, updatable = false)
     private LocalDateTime createdAt;
 
@@ -146,10 +163,12 @@ public class Event {
 
     public enum EventStatus {
         DRAFT("Draft"),
+        PENDING_APPROVAL("Pending Approval"),
         PUBLISHED("Published"),
         ONGOING("Ongoing"),
         COMPLETED("Completed"),
-        CANCELLED("Cancelled");
+        CANCELLED("Cancelled"),
+        REJECTED("Rejected");
 
         private final String displayName;
 
@@ -160,5 +179,9 @@ public class Event {
         public String getDisplayName() {
             return displayName;
         }
+    }
+
+    public enum TargetAudience {
+        STUDENT, ALUMNI, BOTH;
     }
 }

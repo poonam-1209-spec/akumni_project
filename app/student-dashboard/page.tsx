@@ -4,6 +4,7 @@ import { useState, useEffect, useRef } from 'react';
 import { useAuth } from '@/hooks/use-auth';
 import { interactionApi } from '@/lib/interaction-api';
 import { HelpChatbot } from '@/components/help-chatbot';
+import { EventPosterCard } from '@/components/event-poster';
 import {
   LogOut, User, Search, MessageCircle, Briefcase, GraduationCap,
   Users, Bell, Send, X, CheckCircle, Clock, XCircle, ChevronRight,
@@ -42,12 +43,31 @@ export default function StudentDashboard() {
   const [mentorMsg, setMentorMsg] = useState('');
   const [selectedAlumni, setSelectedAlumni] = useState<any>(null);
   const [viewProfile, setViewProfile] = useState<any>(null);
+  const [viewProfileLoading, setViewProfileLoading] = useState(false);
+
+  const openProfile = async (a: any) => {
+    setViewProfileLoading(true);
+    setViewProfile(a); // show immediately with cached data
+    try {
+      const r = await interactionApi.getProfile(a.email);
+      if (r.data || r.success) setViewProfile(r.data || r);
+    } catch (_) {}
+    setViewProfileLoading(false);
+  };
   const [toast, setToast] = useState<{ msg: string; type: 'success' | 'error' } | null>(null);
   const [editProfile, setEditProfile] = useState(false);
   const [profileForm, setProfileForm] = useState({ name: '', phone: '', branch: '', graduationYear: '' });
   const [sending, setSending] = useState(false);
   const [events, setEvents] = useState<any[]>([]);
+  const [profilePhoto, setProfilePhoto] = useState<string | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (user?.email) {
+      const saved = localStorage.getItem(`photo_${user.email}`);
+      if (saved) setProfilePhoto(saved);
+    }
+  }, [user?.email]);
 
   const showToast = (msg: string, type: 'success' | 'error' = 'success') => {
     setToast({ msg, type });
@@ -59,12 +79,13 @@ export default function StudentDashboard() {
     interactionApi.getAlumni().then(r => setAlumniList(r.data || []));
     interactionApi.getJobs().then(r => setJobs(r.data || []));
     interactionApi.getChatPartners(user.email).then(r => setChatPartners(r.data || []));
-    interactionApi.getEvents().then(r => setEvents(r.data || []));
+    interactionApi.getPublishedEvents().then(r => setEvents((r.data || []).filter((e: any) => e.targetAudience === 'STUDENT' || e.targetAudience === 'BOTH' || !e.targetAudience)));
   }, [user]);
 
   useEffect(() => {
     if (!user) return;
     interactionApi.getStudentMentorships(user.email).then(r => setMentorships(r.data || []));
+    if (tab === 'alumni') interactionApi.getAlumni().then(r => setAlumniList(r.data || []));
   }, [user, tab]);
 
   useEffect(() => {
@@ -157,8 +178,10 @@ export default function StudentDashboard() {
           {/* User card */}
           <div className="bg-slate-800 rounded-lg p-3 mb-6">
             <div className="flex items-center gap-3">
-              <div className={`w-10 h-10 ${getBg(user?.email || '')} rounded-xl flex items-center justify-center text-lg`}>
-                {getAvatar(user?.email || '')}
+              <div className={`w-10 h-10 ${getBg(user?.email || '')} rounded-xl flex items-center justify-center text-lg overflow-hidden`}>
+                {profilePhoto
+                  ? <img src={profilePhoto} alt="profile" className="w-full h-full object-cover" />
+                  : getAvatar(user?.email || '')}
               </div>
               <div className="flex-1 min-w-0">
                 <p className="text-white text-sm font-semibold truncate">{user?.name}</p>
@@ -349,8 +372,10 @@ export default function StudentDashboard() {
                 ) : filteredAlumni.map((a: any) => (
                   <div key={a.email} className="bg-white rounded-2xl border border-gray-100 p-5 shadow-sm hover:shadow-md hover:-translate-y-0.5 transition-all group">
                     <div className="flex items-start gap-3 mb-4">
-                      <div className={`w-12 h-12 ${getBg(a.email)} rounded-2xl flex items-center justify-center text-xl shrink-0`}>
-                        {getAvatar(a.email)}
+                      <div className={`w-12 h-12 ${getBg(a.email)} rounded-2xl flex items-center justify-center text-xl shrink-0 overflow-hidden`}>
+                        {localStorage.getItem(`photo_${a.email}`)
+                          ? <img src={localStorage.getItem(`photo_${a.email}`)!} alt={a.name} className="w-full h-full object-cover" />
+                          : getAvatar(a.email)}
                       </div>
                       <div className="flex-1 min-w-0">
                         <p className="font-bold text-gray-900 truncate">{a.name}</p>
@@ -380,7 +405,7 @@ export default function StudentDashboard() {
                         <MessageCircle className="w-4 h-4 text-gray-500" />
                       </button>
                     </div>
-                    <button onClick={() => setViewProfile(a)}
+                    <button onClick={() => openProfile(a)}
                       className="w-full border border-gray-200 hover:border-blue-300 hover:bg-blue-50 text-gray-600 hover:text-blue-700 text-xs font-medium py-2 rounded-xl transition-colors flex items-center justify-center gap-1.5">
                       <User className="w-3.5 h-3.5" /> View Profile
                     </button>
@@ -400,8 +425,10 @@ export default function StudentDashboard() {
                       </button>
                     </div>
                     <div className="flex items-center gap-4 mb-5">
-                      <div className={`w-16 h-16 ${getBg(viewProfile.email)} rounded-2xl flex items-center justify-center text-3xl shrink-0`}>
-                        {getAvatar(viewProfile.email)}
+                      <div className={`w-16 h-16 ${getBg(viewProfile.email)} rounded-2xl flex items-center justify-center text-3xl shrink-0 overflow-hidden`}>
+                        {localStorage.getItem(`photo_${viewProfile.email}`)
+                          ? <img src={localStorage.getItem(`photo_${viewProfile.email}`)!} alt={viewProfile.name} className="w-full h-full object-cover" />
+                          : getAvatar(viewProfile.email)}
                       </div>
                       <div>
                         <p className="font-bold text-gray-900 text-lg">{viewProfile.name}</p>
@@ -409,6 +436,7 @@ export default function StudentDashboard() {
                         <span className={`text-xs px-2 py-0.5 rounded-full font-medium mt-1 inline-block ${BRANCH_COLORS[viewProfile.branch] || 'bg-gray-100 text-gray-600'}`}>
                           {viewProfile.branch} · Class of {viewProfile.graduationYear}
                         </span>
+                        {viewProfileLoading && <p className="text-xs text-blue-400 mt-1">Refreshing...</p>}
                       </div>
                     </div>
                     <div className="space-y-3 bg-gray-50 rounded-xl p-4 mb-4">
@@ -743,55 +771,22 @@ export default function StudentDashboard() {
                   {events.map((e: any) => {
                     const registered = e._registered;
                     return (
-                      <div key={e.id} className="bg-white rounded-2xl border border-gray-100 p-5 shadow-sm hover:shadow-md hover:-translate-y-0.5 transition-all">
-                        <div className="flex items-start justify-between mb-3">
-                          <span className={`text-xs px-2.5 py-1 rounded-full font-medium capitalize ${
-                            e.status === 'PUBLISHED' ? 'bg-green-100 text-green-700' :
-                            e.status === 'ONGOING' ? 'bg-blue-100 text-blue-700' :
-                            'bg-gray-100 text-gray-600'
-                          }`}>{e.status?.toLowerCase()}</span>
-                          <span className="text-xs bg-blue-50 text-blue-700 px-2.5 py-1 rounded-full capitalize">{e.eventType?.toLowerCase()}</span>
-                        </div>
-                        <h3 className="font-bold text-gray-900 mb-1">{e.title}</h3>
-                        <p className="text-xs text-gray-500 mb-4 line-clamp-2">{e.description}</p>
-                        <div className="space-y-2 text-xs text-gray-500 mb-4">
-                          <div className="flex items-center gap-2">
-                            <Calendar className="w-3.5 h-3.5 text-blue-400" />
-                            <span>{new Date(e.eventDate || e.date).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' })}</span>
-                          </div>
-                          {e.location && (
-                            <div className="flex items-center gap-2">
-                              <MapPin className="w-3.5 h-3.5 text-blue-400" />
-                              <span>{e.location}</span>
-                            </div>
-                          )}
-                          {e.capacity && (
-                            <div className="flex items-center gap-2">
-                              <Users className="w-3.5 h-3.5 text-blue-400" />
-                              <span>{e.registeredCount || 0}/{e.capacity} registered</span>
-                            </div>
-                          )}
-                        </div>
-                        <button
-                          disabled={registered}
-                          onClick={async () => {
-                            if (!user) return;
-                            const r = await interactionApi.registerForEvent(e.id, user.email, user.name, 'STUDENT');
-                            if (r.success) {
-                              showToast('Registered successfully!');
-                              setEvents(prev => prev.map(ev => ev.id === e.id ? { ...ev, _registered: true } : ev));
-                            } else {
-                              showToast(r.message || 'Already registered', 'error');
-                            }
-                          }}
-                          className={`w-full py-2.5 rounded-xl text-sm font-semibold transition-all ${
-                            registered
-                              ? 'bg-green-100 text-green-700 cursor-not-allowed'
-                              : 'bg-blue-600 hover:bg-blue-700 text-white shadow-md'
-                          }`}>
-                          {registered ? '✓ Registered' : 'Register Now'}
-                        </button>
-                      </div>
+                      <EventPosterCard
+                        key={e.id}
+                        event={e}
+                        registered={registered}
+                        userRole="STUDENT"
+                        onRegister={async () => {
+                          if (!user) return;
+                          const r = await interactionApi.registerForEvent(e.id, user.email, user.name, 'STUDENT');
+                          if (r.success) {
+                            showToast('Registered successfully!');
+                            setEvents(prev => prev.map(ev => ev.id === e.id ? { ...ev, _registered: true } : ev));
+                          } else {
+                            showToast(r.message || 'Already registered', 'error');
+                          }
+                        }}
+                      />
                     );
                   })}
                 </div>
@@ -813,8 +808,10 @@ export default function StudentDashboard() {
               </div>
               <div className="bg-white rounded-2xl border border-gray-100 p-6 shadow-sm">
                 <div className="flex items-center gap-5 mb-6">
-                  <div className={`w-20 h-20 ${getBg(user?.email || '')} rounded-2xl flex items-center justify-center text-4xl shadow-lg`}>
-                    {getAvatar(user?.email || '')}
+                  <div className={`w-20 h-20 ${getBg(user?.email || '')} rounded-2xl flex items-center justify-center text-4xl shadow-lg overflow-hidden`}>
+                    {profilePhoto
+                      ? <img src={profilePhoto} alt="profile" className="w-full h-full object-cover" />
+                      : getAvatar(user?.email || '')}
                   </div>
                   <div>
                     <p className="text-xl font-bold text-gray-900">{user?.name}</p>
@@ -849,6 +846,35 @@ export default function StudentDashboard() {
                       </button>
                     </div>
                     <div className="space-y-3">
+                      {/* Photo Upload */}
+                      <div className="flex flex-col items-center gap-2 pb-3 border-b border-gray-100">
+                        <div className={`w-20 h-20 ${getBg(user?.email || '')} rounded-2xl overflow-hidden flex items-center justify-center text-4xl shadow`}>
+                          {profilePhoto
+                            ? <img src={profilePhoto} alt="profile" className="w-full h-full object-cover" />
+                            : getAvatar(user?.email || '')}
+                        </div>
+                        <label className="cursor-pointer text-xs font-semibold text-blue-600 hover:text-blue-700 bg-blue-50 hover:bg-blue-100 px-3 py-1.5 rounded-lg transition-colors">
+                          Upload Photo
+                          <input type="file" accept="image/*" className="hidden"
+                            onChange={e => {
+                              const file = e.target.files?.[0];
+                              if (!file) return;
+                              const reader = new FileReader();
+                              reader.onload = ev => {
+                                const result = ev.target?.result as string;
+                                setProfilePhoto(result);
+                                if (user?.email) localStorage.setItem(`photo_${user.email}`, result);
+                              };
+                              reader.readAsDataURL(file);
+                            }} />
+                        </label>
+                        {profilePhoto && (
+                          <button onClick={() => {
+                            setProfilePhoto(null);
+                            if (user?.email) localStorage.removeItem(`photo_${user.email}`);
+                          }} className="text-xs text-red-500 hover:text-red-600">Remove photo</button>
+                        )}
+                      </div>
                       {[
                         { key: 'name', label: 'Full Name', placeholder: user?.name || '' },
                         { key: 'graduationYear', label: 'Graduation Year', placeholder: 'e.g. 2025' },
@@ -871,9 +897,13 @@ export default function StudentDashboard() {
                       ))}
                       <button onClick={async () => {
                         if (!user) return;
-                        const r = await interactionApi.updateProfile(user.email, profileForm);
-                        if (r.success) { showToast('Profile updated!'); setEditProfile(false); }
-                        else showToast('Failed to update', 'error');
+                        try {
+                          const r = await interactionApi.updateProfile(user.email, profileForm);
+                          if (r.success || r.id) { showToast('Profile updated!'); setEditProfile(false); }
+                          else showToast(r.message || 'Failed to update', 'error');
+                        } catch (e) {
+                          showToast('Failed to update', 'error');
+                        }
                       }}
                         className="w-full bg-blue-600 hover:bg-blue-700 text-white font-semibold py-3 rounded-xl text-sm transition-colors">
                         Save Changes
