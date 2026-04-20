@@ -130,6 +130,36 @@ public class EventController {
     }
 
     /**
+     * Get events pending admin approval (submitted by alumni)
+     */
+    @GetMapping("/pending-approval")
+    public ResponseEntity<ApiResponse<List<EventDTO>>> getPendingApprovalEvents() {
+        log.info("GET /api/events/pending-approval - Fetching events pending approval");
+        List<EventDTO> events = eventService.getEventsByStatus(Event.EventStatus.PENDING_APPROVAL);
+        return ResponseEntity.ok(ApiResponse.success("Pending approval events fetched", events));
+    }
+
+    /**
+     * Approve an alumni-submitted event (publish it)
+     */
+    @PutMapping("/{id}/approve")
+    public ResponseEntity<ApiResponse<EventDTO>> approveEvent(@PathVariable String id) {
+        log.info("PUT /api/events/{}/approve - Approving event", id);
+        EventDTO updatedEvent = eventService.approveEvent(id);
+        return ResponseEntity.ok(ApiResponse.success("Event approved and published", updatedEvent));
+    }
+
+    /**
+     * Reject an alumni-submitted event
+     */
+    @PutMapping("/{id}/reject")
+    public ResponseEntity<ApiResponse<EventDTO>> rejectEvent(@PathVariable String id) {
+        log.info("PUT /api/events/{}/reject - Rejecting event", id);
+        EventDTO updatedEvent = eventService.rejectEvent(id);
+        return ResponseEntity.ok(ApiResponse.success("Event rejected", updatedEvent));
+    }
+
+    /**
      * Get event statistics
      */
     @GetMapping("/stats/overview")

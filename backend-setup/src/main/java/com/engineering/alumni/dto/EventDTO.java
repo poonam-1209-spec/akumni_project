@@ -24,7 +24,8 @@ public class EventDTO {
     private Event.EventType eventType;
 
     private Event.EventStatus status;
-
+    private String createdBy;
+    private Event.TargetAudience targetAudience;
     private LocalDateTime createdAt;
     private LocalDateTime updatedAt;
 
@@ -33,7 +34,7 @@ public class EventDTO {
 
     public EventDTO(String id, String title, String description, LocalDateTime eventDate,
             String location, Integer capacity, Event.EventType eventType,
-            Event.EventStatus status, LocalDateTime createdAt, LocalDateTime updatedAt) {
+            Event.EventStatus status, String createdBy, Event.TargetAudience targetAudience, LocalDateTime createdAt, LocalDateTime updatedAt) {
         this.id = id;
         this.title = title;
         this.description = description;
@@ -42,6 +43,8 @@ public class EventDTO {
         this.capacity = capacity;
         this.eventType = eventType;
         this.status = status;
+        this.createdBy = createdBy;
+        this.targetAudience = targetAudience;
         this.createdAt = createdAt;
         this.updatedAt = updatedAt;
     }
@@ -111,6 +114,11 @@ public class EventDTO {
         this.status = status;
     }
 
+    public String getCreatedBy() { return createdBy; }
+    public void setCreatedBy(String createdBy) { this.createdBy = createdBy; }
+    public Event.TargetAudience getTargetAudience() { return targetAudience; }
+    public void setTargetAudience(Event.TargetAudience targetAudience) { this.targetAudience = targetAudience; }
+
     public LocalDateTime getCreatedAt() {
         return createdAt;
     }
@@ -141,6 +149,8 @@ public class EventDTO {
         private Integer capacity;
         private Event.EventType eventType;
         private Event.EventStatus status;
+        private String createdBy;
+        private Event.TargetAudience targetAudience;
         private LocalDateTime createdAt;
         private LocalDateTime updatedAt;
 
@@ -184,6 +194,16 @@ public class EventDTO {
             return this;
         }
 
+        public Builder createdBy(String createdBy) {
+            this.createdBy = createdBy;
+            return this;
+        }
+
+        public Builder targetAudience(Event.TargetAudience targetAudience) {
+            this.targetAudience = targetAudience;
+            return this;
+        }
+
         public Builder createdAt(LocalDateTime createdAt) {
             this.createdAt = createdAt;
             return this;
@@ -195,8 +215,7 @@ public class EventDTO {
         }
 
         public EventDTO build() {
-            return new EventDTO(id, title, description, eventDate, location, capacity, eventType, status, createdAt,
-                    updatedAt);
+            return new EventDTO(id, title, description, eventDate, location, capacity, eventType, status, createdBy, targetAudience, createdAt, updatedAt);
         }
     }
 
@@ -210,6 +229,8 @@ public class EventDTO {
                 .capacity(this.capacity)
                 .eventType(this.eventType)
                 .status(this.status != null ? this.status : Event.EventStatus.DRAFT)
+                .createdBy(this.createdBy)
+                .targetAudience(this.targetAudience != null ? this.targetAudience : Event.TargetAudience.BOTH)
                 .build();
     }
 
@@ -224,6 +245,8 @@ public class EventDTO {
                 .capacity(event.getCapacity())
                 .eventType(event.getEventType())
                 .status(event.getStatus())
+                .createdBy(event.getCreatedBy())
+                .targetAudience(event.getTargetAudience())
                 .createdAt(event.getCreatedAt())
                 .updatedAt(event.getUpdatedAt())
                 .build();

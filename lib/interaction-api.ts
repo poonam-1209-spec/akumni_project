@@ -42,6 +42,12 @@ export const interactionApi = {
 
   // Events
   getEvents: () => req('/events'),
+  getPublishedEvents: () => req('/events/status/PUBLISHED'),
+  submitAlumniEvent: (data: any) => req('/events', { method: 'POST', body: JSON.stringify({ ...data, status: 'PENDING_APPROVAL' }) }),
+  getMySubmittedEvents: (createdBy: string) => req(`/events`).then((r: any) => ({
+    ...r,
+    data: (r.data || []).filter((e: any) => e.createdBy === createdBy)
+  })),
 
   // Event Registrations
   registerForEvent: (eventId: string, userEmail: string, userName: string, userRole: string) =>
